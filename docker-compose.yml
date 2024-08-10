@@ -1,0 +1,56 @@
+services:
+
+  postgres_kc:
+    image: postgres:15.0
+    container_name: postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - 5432:5432
+    networks:
+      - nats-demo
+    volumes:
+      - keycloak_nats_postgres_data:/var/lib/postgresql/data
+
+  keycloak:
+    image: keycloak/keycloak:23.0
+    container_name: keycloak
+    environment:
+      KC_DB: postgres
+      KC_DB_SCHEMA: public
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_URL_HOST: postgres_kc
+      KC_DB_URL_PORT: 5432
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: "false"
+      #KC_LOG_LEVEL: DEBUG
+      KEYCLOAK_NATS_URL: "nats://nats:4222"
+    ports:
+      - 8080:8080
+    entrypoint: /opt/keycloak/bin/kc.sh start-dev
+    depends_on:
+      - postgres_kc
+    networks:
+      - nats-demo
+    volumes:
+      - ./keycloak/providers:/opt/keycloak/providers
+
+  nats:
+    image: nats:alpine3.20
+    container_name: nats
+    ports:
+      - "127.0.0.1:4222:4222"
+    networks:
+      - nats-demo
+
+networks:
+  nats-demo:
+    driver: bridge
+
+volumes:
+  keycloak_nats_postgres_data:

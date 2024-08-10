@@ -1,0 +1,6 @@
+server:
+  port: 9080
+
+app:
+  keycloak:
+    realmId: "c0ffd616-eb5d-45e0-b1ad-3ff9cdf80b73"
