@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ConfigurationProperties("app.keycloak")
+@ConfigurationProperties("keycloak-nats")
 public class KeycloakConfigurationProperties {
 
     private String realmId;

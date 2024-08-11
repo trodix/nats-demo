@@ -1,4 +1,4 @@
-package com.trodix.nats.demo.natsdemo.nats.shared;
+package com.trodix.nats.demo.natsdemo.nats.impl;
 
 public class KeycloakUserEventData {
     private String id;

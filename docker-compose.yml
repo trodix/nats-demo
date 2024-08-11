@@ -28,7 +28,8 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HOSTNAME_STRICT: "false"
-      #KC_LOG_LEVEL: DEBUG
+      KC_LOG_LEVEL: "INFO,li.mesy.keycloaktonats:debug"
+      KEYCLOAK_NATS_JETSTREAM: true
       KEYCLOAK_NATS_URL: "nats://nats:4222"
     ports:
       - 8080:8080
@@ -43,6 +44,7 @@ services:
   nats:
     image: nats:alpine3.20
     container_name: nats
+    command: "-js"
     ports:
       - "127.0.0.1:4222:4222"
     networks:

@@ -1,99 +1,78 @@
 package com.trodix.nats.demo.natsdemo.nats;
 
-import com.trodix.nats.demo.natsdemo.nats.actions.create.KeycloakUserCreateEvent;
-import com.trodix.nats.demo.natsdemo.nats.actions.update.KeycloakUserUpdateEvent;
-import com.trodix.nats.demo.natsdemo.nats.config.AppConfiguration;
-import io.nats.client.Connection;
-import io.nats.client.Dispatcher;
+import com.trodix.nats.demo.natsdemo.nats.config.KeycloakConfigurationProperties;
+import io.nats.client.*;
+import io.nats.client.api.ConsumerConfiguration;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 
-import java.net.InetAddress;
-
-public class NatsKeycloakEventSubscriber {
+public abstract class NatsKeycloakEventSubscriber {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(NatsKeycloakEventSubscriber.class);
 
-    public static final String USER_CREATE_SUBJECT_TPL = "keycloak.event.admin.%s.success.user.create";
-    public static final String USER_DELETE_SUBJECT_TPL = "keycloak.event.admin.%s.success.user.delete";
-    public static final String USER_UPDATE_SUBJECT_TPL = "keycloak.event.admin.%s.success.user.update";
-
     private final Connection natsConnection;
-    private final ApplicationEventPublisher eventPublisher;
-    private final String realmId;
+    private final KeycloakConfigurationProperties properties;
 
     public NatsKeycloakEventSubscriber(
             Connection natsConnection,
-            ApplicationEventPublisher eventPublisher,
-            String realmId
+            KeycloakConfigurationProperties properties
     ) {
-        super();
         this.natsConnection = natsConnection;
-        this.eventPublisher = eventPublisher;
-        this.realmId = realmId;
+        this.properties = properties;
+
+        if (properties.getRealmId() == null || properties.getRealmId().isBlank()) {
+            throw new IllegalArgumentException("realmId must not be null");
+        }
     }
 
     @PostConstruct
     public void init() {
-        sayHello();
-
-        subscribeToUserCreated();
-        subscribeToUserUpdated();
-        subscribeToUserDeleted();
+        subscribeToUserEvents();
     }
 
     public String getUserCreateSubject() {
-        return String.format(USER_CREATE_SUBJECT_TPL, realmId);
+        return String.format("keycloak.event.admin.%s.success.user.create", properties.getRealmId());
     }
 
     public String getUserUpdateSubject() {
-        return String.format(USER_UPDATE_SUBJECT_TPL, realmId);
+        return String.format("keycloak.event.admin.%s.success.user.update", properties.getRealmId());
     }
 
     public String getUserDeleteSubject() {
-        return String.format(USER_DELETE_SUBJECT_TPL, realmId);
+        return String.format("keycloak.event.admin.%s.success.user.delete", properties.getRealmId());
     }
 
-    protected void sayHello() {
+    private void subscribeToUserEvents() {
         try {
-            String hostname = InetAddress.getLocalHost().getHostName().replaceAll("\\.", "_");
-            String helloSubject = String.format("spring.%s.hello", hostname);
-            natsConnection.publish(helloSubject, "Hi there!".getBytes());
+
+            String streamName = "keycloak-admin-event-stream";
+            StreamContext stream = natsConnection.jetStream().getStreamContext(streamName);
+
+            ConsumerContext consumer = stream.createOrUpdateConsumer(ConsumerConfiguration.builder()
+                            .name("spring_keycloak_consumer")
+                            .durable("spring_keycloak_consumer")
+                    .build()
+            );
+
+            consumer.consume(
+                    message -> {
+                        try {
+                            NatsKeycloakEventSubscriber.this.onMessage(message);
+                            message.ack();
+                            LOGGER.info("Keycloak event from {} ACK", message.getSubject());
+                        }  catch (Exception e) {
+                            message.nak();
+                            LOGGER.error("Keycloak event from {} NAK du to exception", message.getSubject(), e);
+                        }
+                    }
+            );
+
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            LOGGER.error("Error subscribing to user events", e);
         }
     }
 
-    protected void subscribeToUserCreated() {
-        Dispatcher dispatcher = natsConnection.createDispatcher(next -> {
-            KeycloakUserCreateEvent event = new KeycloakUserCreateEvent(this, next);
-            eventPublisher.publishEvent(event);
-        });
-
-        dispatcher.subscribe(getUserCreateSubject());
-        LOGGER.info("Subscribed to user created event: {}", getUserCreateSubject());
-    }
-
-    protected void subscribeToUserDeleted() {
-        Dispatcher dispatcher = natsConnection.createDispatcher(next -> {
-            KeycloakUserCreateEvent event = new KeycloakUserCreateEvent(this, next);
-            eventPublisher.publishEvent(event);
-        });
-
-        dispatcher.subscribe(getUserDeleteSubject());
-        LOGGER.info("Subscribed to user deleted event: {}", getUserDeleteSubject());
-    }
-
-    protected void subscribeToUserUpdated() {
-        Dispatcher dispatcher = natsConnection.createDispatcher(next -> {
-            KeycloakUserUpdateEvent event = new KeycloakUserUpdateEvent(this, next);
-            eventPublisher.publishEvent(event);
-        });
-
-        dispatcher.subscribe(getUserUpdateSubject());
-        LOGGER.info("Subscribed to user updated event: {}", getUserUpdateSubject());
-    }
+    public abstract void onMessage(Message msg);
 
 }
