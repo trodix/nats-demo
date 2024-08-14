@@ -33,13 +33,14 @@ services:
       KEYCLOAK_NATS_URL: "nats://nats:4222"
     ports:
       - 8080:8080
-    entrypoint: /opt/keycloak/bin/kc.sh start-dev
+    entrypoint: /opt/keycloak/bin/kc.sh start-dev --spi-theme-static-max-age=-1 --spi-theme-cache-themes=false --spi-theme-cache-templates=false
     depends_on:
       - postgres_kc
     networks:
       - nats-demo
     volumes:
       - ./keycloak/providers:/opt/keycloak/providers
+      - ./keycloak/themes:/opt/keycloak/themes
 
   nats:
     image: nats:alpine3.20
